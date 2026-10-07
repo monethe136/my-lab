@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>平面导体镜像法的静电场模拟仿真</title>
+<style>
+  :root {
+    --bg: #eef1f7;
+    --card: #ffffff;
+    --line: #e6eaf0;
+    --text: #1e293b;
+    --muted: #64748b;
+    --accent: #4f46e5;
+    --accent-soft: #eef2ff;
+    --orange: #f97316;
+    --shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: var(--text);
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #e6ebf6 0%, transparent 60%),
+      radial-gradient(1000px 520px at 100% 0%, #edf0fb 0%, transparent 55%),
+      var(--bg);
+    font-family: "Microsoft YaHei", "PingFang SC", -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 32px 20px 64px; }
+
+  header.top { margin-bottom: 20px; }
+  header.top h1 {
+    font-size: 25px; font-weight: 700; letter-spacing: -0.3px; margin: 0 0 6px; color: #0f172a;
+  }
+  header.top .sub { color: var(--muted); font-size: 13.5px; margin: 0; }
+
+  .layout { display: flex; gap: 20px; align-items: flex-start; }
+  .left { flex: 1 1 auto; min-width: 0; }
+  .right { flex: 0 0 330px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow);
+  }
+  .card h2 {
+    font-size: 14px; font-weight: 700; margin: 0 0 12px; color: #334155;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card h2::before { content: ""; width: 4px; height: 15px; border-radius: 2px; background: var(--accent); }
+
+  canvas { width: 100%; height: auto; display: block; border-radius: 12px; background: #fff; border: 1px solid var(--line); }
+
+  /* 场景按钮 */
+  .scenes { display: flex; flex-direction: column; gap: 8px; }
+  .scene-btn {
+    position: relative; display: block; width: 100%; text-align: left;
+    padding: 10px 12px 10px 16px; border: 1px solid var(--line); border-radius: 11px;
+    background: #fff; cursor: pointer; font-size: 13.5px; color: var(--text);
+    transition: all .16s ease; overflow: hidden;
+  }
+  .scene-btn::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    background: transparent; transition: background .16s ease;
+  }
+  .scene-btn:hover { border-color: #c7d2fe; box-shadow: 0 4px 12px rgba(79,70,229,.10); transform: translateY(-1px); }
+  .scene-btn.active { background: var(--accent-soft); border-color: var(--accent); font-weight: 600; }
+  .scene-btn.active::before { background: var(--accent); }
+  .scene-btn small { display: block; color: var(--muted); font-weight: 400; font-size: 11.5px; margin-top: 2px; }
+
+  /* 参数滑块 */
+  .param { margin-bottom: 16px; }
+  .param label { font-size: 12.5px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; color: #475569; }
+  .param label b { color: var(--accent); font-variant-numeric: tabular-nums; background: var(--accent-soft); padding: 1px 9px; border-radius: 7px; font-size: 12px; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent), #c7d2fe); outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; border: 2.5px solid var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,.22); cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2.5px solid var(--accent);
+    box-shadow: 0 1px 4px rgba(0,0,0,.22); cursor: pointer;
+  }
+
+  .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 14px; font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 1px rgba(0,0,0,.06); }
+  .dot.line { border-radius: 2px; height: 4px; width: 18px; }
+
+  .scene-desc { font-size: 12.5px; color: var(--muted); background: #f8fafc; border: 1px solid #eef2f7; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; line-height: 1.55; }
+
+  @media (max-width: 900px) { .layout { flex-direction: column; } .right { flex: 1 1 auto; width: 100%; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>平面导体镜像法的静电场模拟仿真</h1>
+    <p class="sub">镜像法 · 静电场 · 5 个互动场景（平面 / 正交平面 / 球面 / 圆柱 / 平行板）—— 左侧图像，右侧参数调节；蓝色深浅表示电势强弱，红色实线为电场线，蓝色虚线为等势线。</p>
+  </header>
+
+  <div class="layout">
+    <!-- 左侧：图像 -->
+    <div class="left">
+      <div class="card">
+        <canvas id="canvas" width="860" height="760"></canvas>
+      </div>
+    </div>
+
+    <!-- 右侧：控制面板 -->
+    <div class="right">
+      <div class="card">
+        <h2>选择场景（5 个）</h2>
+        <div class="scenes" id="sceneList"></div>
+      </div>
+
+      <div class="card">
+        <h2>参数调节</h2>
+        <div class="scene-desc" id="sceneDesc"></div>
+        <div id="paramPanel"></div>
+      </div>
+
+      <div class="card">
+        <h2>图例</h2>
+        <div class="legend">
+          <span><i class="dot" style="background:#dc2626"></i> 正电荷（实心）</span>
+          <span><i class="dot" style="background:#2563eb"></i> 负电荷（实心）</span>
+          <span><i class="dot" style="border:2px solid #64748b;background:transparent"></i> 镜像电荷（虚拟）</span>
+          <span><i class="dot line" style="background:#1e293b"></i> 接地导体</span>
+          <span><i class="dot line" style="background:#dc2626"></i> 电场线</span>
+          <span><i class="dot line" style="background:#1d4ed8"></i> 等势线（虚线）</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ============================ 物理函数（叠加原理） ============================
+// 电荷类型：'point' 三维点电荷（V=q/r），'line' 二维线电荷（V=-λ·ln r）
+function potentialAt(x, z, charges) {
+  let V = 0;
+  for (const c of charges) {
+    const r = Math.hypot(x - c.x, z - c.z);
+    if (r <= 1e-9) continue;
+    if (c.type === "line") V += -c.q * Math.log(r);   // 线电荷：对数势
+    else V += c.q / r;                                 // 点电荷：1/r 势
+  }
+  return V;
+}
+function eFieldAt(x, z, charges) {
+  let Ex = 0, Ez = 0;
+  for (const c of charges) {
+    const dx = x - c.x, dz = z - c.z;
+    const r = Math.hypot(dx, dz);
+    if (r <= 1e-9) continue;
+    if (c.type === "line") {
+      const r2 = r * r;
+      Ex += c.q * dx / r2; Ez += c.q * dz / r2;        // 线电荷：E ~ 1/r
+    } else {
+      const r3 = r * r * r;
+      Ex += c.q * dx / r3; Ez += c.q * dz / r3;        // 点电荷：E ~ 1/r²
+    }
+  }
+  return { Ex, Ez };
+}
+
+// ============================ 颜色映射（单色深浅：浅蓝 → 深蓝） ============================
+function blueScale(t) {
+  t = t < 0 ? 0 : (t > 1 ? 1 : t);
+  t = Math.pow(t, 0.7);              // 非线性：低电势区更浅，过渡更丝滑
+  const c0 = [0.96, 0.97, 1.00];     // 低电势：极浅蓝白
+  const c1 = [0.45, 0.55, 0.86];     // 高电势：柔和的中蓝（降低饱和度/深度）
+  return [c0[0] + (c1[0] - c0[0]) * t,
+          c0[1] + (c1[1] - c0[1]) * t,
+          c0[2] + (c1[2] - c0[2]) * t];
+}
+function rgbStr(c) { return `rgb(${Math.round(c[0]*255)},${Math.round(c[1]*255)},${Math.round(c[2]*255)})`; }
+
+// ============================ 场景定义 ============================
+// 每个场景：参数列表 + build(params) 返回 {charges, conductors, domain, bounds}
+const SCENES = [
+  {
+    name: "点电荷 + 接地导体平面",
+    desc: "镜像法基础：用导体平面对称位置的镜像电荷 −q 替代感应电荷。调节电量 q 与到平面的距离 d。",
+    params: [
+      { key: "q", label: "电量 q", min: 0.3, max: 3, step: 0.1, value: 1, fmt: v => "+" + v.toFixed(2) },
+      { key: "d", label: "到平面距离 d", min: 0.5, max: 5, step: 0.1, value: 2, fmt: v => v.toFixed(2) },
+    ],
+    build(p) {
+      const d = p.d;
+      return {
+        charges: [
+          { x: 0, z: d, q: p.q, type: "point", virtual: false },
+          { x: 0, z: -d, q: -p.q, type: "point", virtual: true },
+        ],
+        conductors: [{ x1: -6, z1: 0, x2: 6, z2: 0 }],
+        circles: [],
+        domain: (x, z) => z >= 0,
+        bounds: { xmin: -6, xmax: 6, zmin: -d - 1.4, zmax: 6 },
+      };
+    }
+  },
+  {
+    name: "点电荷 + 正交导体平面",
+    desc: "两块互相垂直的接地导体板，需 3 个镜像电荷等效。调节电荷到两板距离 a、b 观察镜像对称性。",
+    params: [
+      { key: "q", label: "电量 q", min: 0.3, max: 3, step: 0.1, value: 1, fmt: v => "+" + v.toFixed(2) },
+      { key: "a", label: "到竖板距离 a", min: 0.5, max: 4, step: 0.1, value: 2, fmt: v => v.toFixed(2) },
+      { key: "b", label: "到横板距离 b", min: 0.5, max: 4, step: 0.1, value: 2, fmt: v => v.toFixed(2) },
+    ],
+    build(p) {
+      const a = p.a, b = p.b, q = p.q;
+      return {
+        charges: [
+          { x:  a, z:  b, q:  q, type: "point", virtual: false },
+          { x: -a, z:  b, q: -q, type: "point", virtual: true  },
+          { x:  a, z: -b, q: -q, type: "point", virtual: true  },
+          { x: -a, z: -b, q:  q, type: "point", virtual: true  },
+        ],
+        conductors: [
+          { x1: 0, z1: 0, x2: 0, z2: 6 },   // 竖板 x=0
+          { x1: 0, z1: 0, x2: 6, z2: 0 },   // 横板 z=0
+        ],
+        circles: [],
+        domain: (x, z) => x >= 0 && z >= 0,
+        bounds: { xmin: -6, xmax: 6, zmin: -6, zmax: 6 },
+        equalAspect: true,
+      };
+    }
+  },
+  {
+    name: "点电荷 + 接地导体球面",
+    desc: "球面镜像法：镜像电荷 q′ = −qR/d 位于球心连线上、距球心 R²/d 处（球内）。调节电量与球心到电荷距离 d。",
+    params: [
+      { key: "q", label: "电量 q", min: 0.3, max: 3, step: 0.1, value: 1, fmt: v => "+" + v.toFixed(2) },
+      { key: "d", label: "球心到电荷 d", min: 2.5, max: 6, step: 0.1, value: 4, fmt: v => v.toFixed(2) },
+    ],
+    build(p) {
+      const R = 2, q = p.q, d = p.d;
+      const b = R * R / d;        // 镜像电荷位置
+      const qi = -q * R / d;      // 镜像电荷电量
+      return {
+        charges: [
+          { x: d, z: 0, q: q,  type: "point", virtual: false },
+          { x: b, z: 0, q: qi, type: "point", virtual: true  },
+        ],
+        conductors: [],
+        circles: [{ x: 0, z: 0, r: R }],
+        domain: (x, z) => Math.hypot(x, z) >= R,
+        bounds: { xmin: -7, xmax: 7, zmin: -7, zmax: 7 },
+        equalAspect: true,
+      };
+    }
+  },
+  {
+    name: "线电荷 + 接地导体圆柱",
+    desc: "圆柱镜像法：无限长线电荷 λ，镜像线电荷 −λ 位于 R²/d 处。二维对数势，电场线垂直于圆柱表面。",
+    params: [
+      { key: "lam", label: "线密度 λ", min: 0.3, max: 3, step: 0.1, value: 1, fmt: v => "+" + v.toFixed(2) },
+      { key: "d",   label: "轴线到线电荷 d", min: 2.5, max: 6, step: 0.1, value: 4, fmt: v => v.toFixed(2) },
+    ],
+    build(p) {
+      const R = 2, lam = p.lam, d = p.d;
+      const b = R * R / d;        // 镜像线电荷位置
+      return {
+        vOffset: lam * Math.log(d / R),   // 使圆柱面电势严格为 0
+        charges: [
+          { x: d, z: 0, q:  lam, type: "line", virtual: false },
+          { x: b, z: 0, q: -lam, type: "line", virtual: true  },
+        ],
+        conductors: [],
+        circles: [{ x: 0, z: 0, r: R }],
+        domain: (x, z) => Math.hypot(x, z) >= R,
+        bounds: { xmin: -7, xmax: 7, zmin: -7, zmax: 7 },
+        equalAspect: true,
+        // 圆柱镜像的净电荷为 0，所有电场线最终都终止在圆柱面上；
+        // 部分电场线要绕到很远之外再折回，扩大追踪范围避免被画布边界截断
+        tracePad: 8,
+      };
+    }
+  },
+  {
+    name: "点电荷 + 两平行接地板",
+    desc: "平行板镜像法：两块接地导体板间的点电荷，需无穷多个镜像电荷（“镜像的镜像”）等效。调节板间距 a 与电荷到左板距离 d。",
+    params: [
+      { key: "q", label: "电量 q", min: 0.3, max: 3, step: 0.1, value: 1, fmt: v => "+" + v.toFixed(2) },
+      { key: "a", label: "板间距 a", min: 2, max: 5, step: 0.1, value: 3, fmt: v => v.toFixed(2) },
+      { key: "d", label: "电荷位置 d", min: 0.4, max: 4.6, step: 0.1, value: 1.5, fmt: v => v.toFixed(2) },
+    ],
+    build(p) {
+      const a = p.a, q = p.q;
+      const d = Math.min(Math.max(p.d, 0.35), a - 0.35);   // 保证电荷在板内
+      const charges = [];
+      const Nimg = 10;   // 每侧镜像数量（截断无穷级数）
+      for (let n = -Nimg; n <= Nimg; n++) {
+        charges.push({ x:  d + 2 * n * a, z: 0, q:  q, type: "point", virtual: n !== 0 });
+        charges.push({ x: -d + 2 * n * a, z: 0, q: -q, type: "point", virtual: true  });
+      }
+      return {
+        charges,
+        conductors: [
+          { x1: 0, z1: -20, x2: 0,  z2: 20 },   // 左板 x=0
+          { x1: a, z1: -20, x2: a,  z2: 20 },   // 右板 x=a
+        ],
+        circles: [],
+        domain: (x, z) => x >= 0 && x <= a,
+        bounds: { xmin: -2, xmax: a + 2, zmin: -3.5, zmax: 3.5 },
+        equalAspect: true,
+      };
+    }
+  },
+];
+
+// ============================ 状态 ============================
+let curIdx = 0;
+let params = {};
+SCENES.forEach((sc, i) => { params[i] = {}; sc.params.forEach(p => params[i][p.key] = p.value); });
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+// ============================ Marching Squares（支持 NaN 跳过） ============================
+function marchingSquares(V, xs, zs, level) {
+  const nx = xs.length, nz = zs.length, segs = [];
+  for (let i = 0; i < nz - 1; i++) {
+    for (let j = 0; j < nx - 1; j++) {
+      const vA = V[i][j], vB = V[i][j + 1], vC = V[i + 1][j + 1], vD = V[i + 1][j];
+      if (isNaN(vA) || isNaN(vB) || isNaN(vC) || isNaN(vD)) continue;
+      const bA = vA > level ? 1 : 0, bB = vB > level ? 1 : 0;
+      const bC = vC > level ? 1 : 0, bD = vD > level ? 1 : 0;
+      const idx = bA + 2 * bB + 4 * bC + 8 * bD;
+      if (idx === 0 || idx === 15) continue;
+      const A = [xs[j], zs[i]], B = [xs[j + 1], zs[i]], C = [xs[j + 1], zs[i + 1]], D = [xs[j], zs[i + 1]];
+      const edges = {};
+      if ((vA > level) !== (vB > level)) edges[0] = [A[0] + (level - vA) / (vB - vA) * (B[0] - A[0]), zs[i]];
+      if ((vB > level) !== (vC > level)) edges[1] = [xs[j + 1], zs[i] + (level - vB) / (vC - vB) * (zs[i + 1] - zs[i])];
+      if ((vC > level) !== (vD > level)) edges[2] = [C[0] + (level - vC) / (vD - vC) * (D[0] - C[0]), zs[i + 1]];
+      if ((vD > level) !== (vA > level)) edges[3] = [xs[j], zs[i] + (level - vA) / (vD - vA) * (zs[i + 1] - zs[i])];
+      let pairs;
+      switch (idx) {
+        case 1: case 14: pairs = [[0, 3]]; break;
+        case 2: case 13: pairs = [[0, 1]]; break;
+        case 3: case 12: pairs = [[1, 3]]; break;
+        case 4: case 11: pairs = [[1, 2]]; break;
+        case 6: case 9:  pairs = [[0, 2]]; break;
+        case 7: case 8:  pairs = [[2, 3]]; break;
+        case 5:  pairs = [[0, 1], [2, 3]]; break;
+        case 10: pairs = [[0, 3], [1, 2]]; break;
+        default: pairs = [];
+      }
+      for (const [e1, e2] of pairs) if (edges[e1] && edges[e2]) segs.push([edges[e1], edges[e2]]);
+    }
+  }
+  return segs;
+}
+
+// ============================ 主绘制 ============================
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  const sc = SCENES[curIdx];
+  const S = sc.build(params[curIdx]);
+  const { charges, conductors, circles, domain, bounds } = S;
+  const tracePad = S.tracePad || 0;   // 电场线追踪范围相对画布的额外余量
+  const b = bounds;
+  const vOff = S.vOffset || 0;
+  const equalAspect = S.equalAspect === true;
+  let toC, fromC, eqScale = null;
+  if (equalAspect) {
+    eqScale = Math.min(W / (b.xmax - b.xmin), H / (b.zmax - b.zmin));
+    const cx0 = W / 2 - (b.xmax + b.xmin) / 2 * eqScale;
+    const cy0 = H / 2 + (b.zmax + b.zmin) / 2 * eqScale;
+    toC = (px, pz) => [cx0 + px * eqScale, cy0 - pz * eqScale];
+    fromC = (cxpx, cypx) => [(cxpx - cx0) / eqScale, (cy0 - cypx) / eqScale];
+  } else {
+    toC = (px, pz) => [(px - b.xmin) / (b.xmax - b.xmin) * W, (b.zmax - pz) / (b.zmax - b.zmin) * H];
+    fromC = (cxpx, cypx) => [b.xmin + cxpx / W * (b.xmax - b.xmin), b.zmax - cypx / H * (b.zmax - b.zmin)];
+  }
+
+  // ---- 1. 电势伪彩色背景 ----
+  const bgW = Math.floor(W / 3), bgH = Math.floor(H / 3);
+  const off = document.createElement("canvas");
+  off.width = bgW; off.height = bgH;
+  const octx = off.getContext("2d");
+  const img = octx.createImageData(bgW, bgH);
+  const maxQ = Math.max(...charges.map(c => Math.abs(c.q)));
+  const Vmax = 2.2 * maxQ;
+  for (let py = 0; py < bgH; py++) {
+    const pyF = (py + 0.5) / bgH * H;
+    for (let px = 0; px < bgW; px++) {
+      const pxF = (px + 0.5) / bgW * W;
+      const [x, pz] = fromC(pxF, pyF);
+      const idx = (py * bgW + px) * 4;
+      const inside = x >= b.xmin && x <= b.xmax && pz >= b.zmin && pz <= b.zmax;
+      if (!inside) {
+        // bounds 外：极浅灰留白
+        img.data[idx] = 240; img.data[idx+1] = 242; img.data[idx+2] = 245; img.data[idx+3] = 255;
+      } else if (!domain(x, pz)) {
+        // 虚空间 / 导体内部：金属灰纯色（后续再叠加斜线纹理）
+        img.data[idx] = 195; img.data[idx+1] = 203; img.data[idx+2] = 211; img.data[idx+3] = 255;
+      } else {
+        // 真实空间：非常淡的青色背景
+        img.data[idx] = 247; img.data[idx+1] = 251; img.data[idx+2] = 252; img.data[idx+3] = 255;
+      }
+    }
+  }
+  octx.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(off, 0, 0, W, H);
+
+  // ---- 1.5 导体填充（金属灰 + 斜线纹理，清晰区分真实物理空间）----
+  (function fillConductor() {
+    const hasCirc = circles && circles.length > 0;
+    const hasCon = conductors && conductors.length > 0;
+    if (!hasCirc && !hasCon) return;   // 无导体（理论上不会出现）
+    ctx.save();
+    ctx.beginPath();
+    if (hasCirc) {
+      // 圆导体（球面/圆柱）：导体 = 圆盘内部
+      for (const cir of circles) {
+        const [cx, cy] = toC(cir.x, cir.z);
+        const cr = (eqScale || (W / (b.xmax - b.xmin))) * cir.r;
+        ctx.moveTo(cx + cr, cy);
+        ctx.arc(cx, cy, cr, 0, 2 * Math.PI);
+      }
+    } else {
+      // 平面导体：导体 = bounds 矩形减去真实空间半平面（用 evenodd 求补）
+      const [bx1, by1] = toC(b.xmin, b.zmax);
+      const [bx2, by2] = toC(b.xmax, b.zmin);
+      ctx.rect(bx1, by1, bx2 - bx1, by2 - by1);
+      // 求真实空间矩形
+      let rx0 = b.xmin, rx1 = b.xmax, rz0 = b.zmin, rz1 = b.zmax;
+      for (const con of conductors) {
+        if (Math.abs(con.z1 - con.z2) < 1e-9) {        // 水平导体面 z=const
+          const zl = con.z1;
+          if (domain(0, zl + 1)) rz0 = Math.max(rz0, zl); else rz1 = Math.min(rz1, zl);
+        } else {                                       // 竖直导体面 x=const
+          const xl = con.x1;
+          if (domain(xl + 1, 0)) rx0 = Math.max(rx0, xl); else rx1 = Math.min(rx1, xl);
+        }
+      }
+      const [rpx1, rpy1] = toC(rx0, rz1);
+      const [rpx2, rpy2] = toC(rx1, rz0);
+      ctx.rect(rpx1, rpy1, rpx2 - rpx1, rpy2 - rpy1);
+      ctx.clip("evenodd");
+    }
+    if (hasCirc) ctx.clip();
+    // 金属灰底色
+    ctx.fillStyle = "#c5cbd3";
+    ctx.fillRect(0, 0, W, H);
+    // 45° 斜线纹理（工程制图“金属剖面”画法）
+    ctx.strokeStyle = "#a3abb6"; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = -H; i < W + H; i += 9) {
+      ctx.moveTo(i, 0); ctx.lineTo(i + H, H);
+    }
+    ctx.stroke();
+    ctx.restore();
+  })();
+
+  // ---- 2. 等势线（蓝色虚线，在淡青背景下醒目）----
+  const nx = 260, nz = 200;
+  const xs = Array.from({length: nx}, (_, j) => b.xmin + j / (nx - 1) * (b.xmax - b.xmin));
+  const zs = Array.from({length: nz}, (_, i) => b.zmax - i / (nz - 1) * (b.zmax - b.zmin));
+  const V = new Array(nz);
+  for (let i = 0; i < nz; i++) {
+    V[i] = new Float64Array(nx);
+    for (let j = 0; j < nx; j++) {
+      V[i][j] = domain(xs[j], zs[i]) ? potentialAt(xs[j], zs[i], charges) + vOff : NaN;
+    }
+  }
+  const lvBase = [0.08, 0.22, 0.42, 0.68, 1.0, 1.4, 1.9, 2.5];
+  const levels = [];
+  for (const L of lvBase) { levels.push(L * maxQ, -L * maxQ); }
+  levels.push(0.0);
+
+  // 预先提取所有等势线段，避免重复计算 marching squares
+  const allSegs = [];
+  for (const lv of levels) {
+    for (const seg of marchingSquares(V, xs, zs, lv)) allSegs.push(seg);
+  }
+  function strokeContours(style, width, dash) {
+    ctx.strokeStyle = style; ctx.lineWidth = width;
+    // 等势线按惯例用虚线；只绘制一遍并固定 dash，避免相位错位产生重影
+    ctx.setLineDash(dash || []);
+    ctx.beginPath();
+    for (const [p1, p2] of allSegs) {
+      const [x1, y1] = toC(p1[0], p1[1]);
+      const [x2, y2] = toC(p2[0], p2[1]);
+      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  // 等势线：蓝色虚线（教材惯例）
+  strokeContours("#1d4ed8", 1.5, [7, 5]);
+
+  // ---- 3. 电场线（红色实线，导体边界处精确截断）----
+  const realCharges = charges.filter(c => !c.virtual);
+  const N = 18, EPS = 0.07;
+  const allLines = [];
+  // 有效域：在 domain 内且在追踪范围（画布 bounds 外扩 tracePad）内
+  function isValid(x, z) {
+    return x >= b.xmin - tracePad && x <= b.xmax + tracePad &&
+           z >= b.zmin - tracePad && z <= b.zmax + tracePad && domain(x, z);
+  }
+  // 二分查找有效域边界交点（prev 在域内，cur 在域外）
+  function boundaryPoint(x1, z1, x2, z2) {
+    for (let i = 0; i < 14; i++) {
+      const mx = (x1 + x2) / 2, mz = (z1 + z2) / 2;
+      if (isValid(mx, mz)) { x1 = mx; z1 = mz; } else { x2 = mx; z2 = mz; }
+    }
+    return [(x1 + x2) / 2, (z1 + z2) / 2];
+  }
+  // 沿电场方向追踪一条电场线（sign=+1 顺电场，-1 逆电场），用 RK4 积分
+  function traceLine(x0, z0, sign) {
+    const line = [[x0, z0]];
+    let x = x0, z = z0;
+    const dirAt = (xx, zz) => {
+      const { Ex, Ez } = eFieldAt(xx, zz, charges);
+      const m = Math.hypot(Ex, Ez);
+      if (m < 1e-12) return null;
+      return [sign * Ex / m, sign * Ez / m];
+    };
+    for (let s = 0; s < 3000; s++) {
+      let step = 0.14 * Math.min(...charges.map(cc => Math.hypot(x - cc.x, z - cc.z)));
+      step = Math.max(0.015, Math.min(0.22, step));
+      const px = x, pz = z;
+      const k1 = dirAt(x, z);
+      if (!k1) break;
+      const k2 = dirAt(x + step / 2 * k1[0], z + step / 2 * k1[1]);
+      const k3 = k2 ? dirAt(x + step / 2 * k2[0], z + step / 2 * k2[1]) : null;
+      const k4 = k3 ? dirAt(x + step * k3[0], z + step * k3[1]) : null;
+      if (k2 && k3 && k4) {
+        x += step / 6 * (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]);
+        z += step / 6 * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]);
+      } else {
+        x += step * k1[0];
+        z += step * k1[1];
+      }
+      let near = false;
+      for (const cc of charges) if (Math.hypot(x - cc.x, z - cc.z) < 0.05) { near = true; break; }
+      if (near) { line.push([x, z]); break; }
+      if (!isValid(x, z)) { line.push(boundaryPoint(px, pz, x, z)); break; }
+      line.push([x, z]);
+    }
+    return line;
+  }
+  // 正电荷沿 +E 发射全部方向；若无正电荷，负电荷沿 -E 发射（负电荷作为“汇”）
+  const pos = realCharges.filter(c => c.q > 0);
+  const sources = pos.length > 0 ? pos : realCharges;
+  for (const c of sources) {
+    const sign = c.q > 0 ? 1 : -1;
+    for (let k = 0; k < N; k++) {
+      const theta = k / N * 2 * Math.PI;
+      // 同号正电荷：跳过“正对另一个正电荷”的方向（那是鞍点，电场线会在此中断/汇聚，形成错误的连线）
+      if (c.q > 0) {
+        const ux = Math.cos(theta), uz = Math.sin(theta);
+        let toward = false;
+        for (const pc of realCharges) {
+          if (pc !== c && pc.q > 0) {
+            const dx = pc.x - c.x, dz = pc.z - c.z;
+            const dr = Math.hypot(dx, dz);
+            if (dr < 1e-9) continue;
+            if ((dx / dr) * ux + (dz / dr) * uz > 0.995) { toward = true; break; }
+          }
+        }
+        if (toward) continue;
+      }
+      // 二维线电荷：跳过“背离异号电荷”的轴向分界线（零通量测度线，
+      // 理论上延伸到无穷远，画出来会像一条凭空跑出去的直线）
+      if (c.type === "line" && c.q > 0) {
+        const ux = Math.cos(theta), uz = Math.sin(theta);
+        let away = false;
+        for (const pc of charges) {
+          if (pc.q < 0) {
+            const dx = c.x - pc.x, dz = c.z - pc.z;
+            const dr = Math.hypot(dx, dz);
+            if (dr < 1e-9) continue;
+            if ((dx / dr) * ux + (dz / dr) * uz > 0.999) { away = true; break; }
+          }
+        }
+        if (away) continue;
+      }
+      const x = c.x + EPS * Math.cos(theta), z = c.z + EPS * Math.sin(theta);
+      if (!isValid(x, z)) continue;
+      const line = traceLine(x, z, sign);
+      if (line.length >= 2) allLines.push(line);
+    }
+  }
+  // 红色实线（一次性绘制）
+  ctx.strokeStyle = "#dc2626"; ctx.lineWidth = 1.8; ctx.setLineDash([]);
+  for (const line of allLines) {
+    ctx.beginPath();
+    line.forEach((p, i) => {
+      const [cx, cy] = toC(p[0], p[1]);
+      i === 0 ? ctx.moveTo(cx, cy) : ctx.lineTo(cx, cy);
+    });
+    ctx.stroke();
+  }
+  // 方向箭头（红色，沿物理 E 方向）
+  for (const line of allLines) {
+    for (const frac of [0.55]) {
+      const mp = line[Math.floor(line.length * frac)];
+      if (!mp) continue;
+      const { Ex, Ez } = eFieldAt(mp[0], mp[1], charges);
+      const m = Math.hypot(Ex, Ez);
+      if (m < 1e-9) continue;
+      const [ax, ay] = toC(mp[0], mp[1]);
+      drawArrow(ctx, ax, ay, Math.atan2(-Ez, Ex), 4);
+    }
+  }
+
+  // ---- 4. 导体（带阴影质感）----
+  for (const con of conductors) {
+    const [x1, y1] = toC(con.x1, con.z1);
+    const [x2, y2] = toC(con.x2, con.z2);
+    ctx.strokeStyle = "rgba(15,23,42,0.18)"; ctx.lineWidth = 11;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.strokeStyle = "#1e293b"; ctx.lineWidth = 6.5;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+  // 圆导体（球面 / 圆柱）
+  for (const cir of (circles || [])) {
+    const [ccx, ccy] = toC(cir.x, cir.z);
+    const cr = (eqScale || (W / (b.xmax - b.xmin))) * cir.r;
+    ctx.strokeStyle = "rgba(15,23,42,0.18)"; ctx.lineWidth = 11;
+    ctx.beginPath(); ctx.arc(ccx, ccy, cr, 0, 2 * Math.PI); ctx.stroke();
+    ctx.strokeStyle = "#1e293b"; ctx.lineWidth = 6.5;
+    ctx.beginPath(); ctx.arc(ccx, ccy, cr, 0, 2 * Math.PI); ctx.stroke();
+  }
+
+  // ---- 5. 电荷（带光晕与立体感）----
+  for (const c of charges) {
+    const [cx, cy] = toC(c.x, c.z);
+    const col = c.q > 0 ? "#ef4444" : "#3b82f6";
+    const light = c.q > 0 ? "#fecaca" : "#bfdbfe";
+    // 光晕
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 24);
+    glow.addColorStop(0, c.q > 0 ? "rgba(239,68,68,0.5)" : "rgba(59,130,246,0.5)");
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(cx, cy, 24, 0, 2 * Math.PI); ctx.fill();
+
+    if (c.virtual) {
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.arc(cx, cy, 8, 0, 2 * Math.PI); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = col; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(c.q > 0 ? "+" : "−", cx, cy);
+    } else {
+      // 立体填充：左上高光 → 主色
+      const g = ctx.createRadialGradient(cx - 3, cy - 3, 1, cx, cy, 10);
+      g.addColorStop(0, light);
+      g.addColorStop(1, col);
+      ctx.fillStyle = g; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, 9, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#fff"; ctx.font = "bold 13px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(c.q > 0 ? "+" : "−", cx, cy);
+    }
+  }
+
+  // ---- 6. 标题（带半透明底板）----
+  const title = SCENES[curIdx].name;
+  ctx.font = "bold 14px sans-serif";
+  const tw = ctx.measureText(title).width;
+  ctx.fillStyle = "rgba(255,255,255,0.88)";
+  fillRoundRect(ctx, 10, 8, tw + 22, 28, 8); ctx.fill();
+  ctx.fillStyle = "#0f172a"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  ctx.fillText(title, 22, 23);
+}
+
+function drawArrow(ctx, x, y, ang, size) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  ctx.fillStyle = "#dc2626";
+  ctx.beginPath();
+  ctx.moveTo(size, 0); ctx.lineTo(-size * 0.6, size * 0.6); ctx.lineTo(-size * 0.6, -size * 0.6);
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+
+function fillRoundRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// ============================ 控制面板 ============================
+function renderControls() {
+  // 场景按钮
+  const list = document.getElementById("sceneList");
+  list.innerHTML = "";
+  SCENES.forEach((sc, i) => {
+    const btn = document.createElement("button");
+    btn.className = "scene-btn" + (i === curIdx ? " active" : "");
+    btn.innerHTML = `<span>${sc.name}</span><small>${sc.desc.slice(0, 34)}…</small>`;
+    btn.addEventListener("click", () => { curIdx = i; renderControls(); draw(); });
+    list.appendChild(btn);
+  });
+
+  // 场景说明
+  document.getElementById("sceneDesc").textContent = SCENES[curIdx].desc;
+
+  // 参数面板
+  const panel = document.getElementById("paramPanel");
+  panel.innerHTML = "";
+  SCENES[curIdx].params.forEach(p => {
+    const wrap = document.createElement("div");
+    wrap.className = "param";
+    const label = document.createElement("label");
+    const valB = document.createElement("b");
+    valB.textContent = p.fmt(params[curIdx][p.key]);
+    label.appendChild(document.createTextNode(p.label + " "));
+    label.appendChild(valB);
+    const input = document.createElement("input");
+    input.type = "range"; input.min = p.min; input.max = p.max; input.step = p.step;
+    input.value = params[curIdx][p.key];
+    input.addEventListener("input", () => {
+      params[curIdx][p.key] = parseFloat(input.value);
+      valB.textContent = p.fmt(params[curIdx][p.key]);
+      draw();
+    });
+    wrap.appendChild(label); wrap.appendChild(input);
+    panel.appendChild(wrap);
+  });
+}
+
+window.addEventListener("load", () => { renderControls(); draw(); });
+</script>
+</body>
+</html>
